@@ -114,22 +114,31 @@ class Note:
 
     _id_counter = 1  # останній ID
 
-    def __init__(self, content: str):
+    def __init__(self, content: str, tags: list[str] = None):
         if len(content.strip()) == 0:
             raise ValueError("Note can not be empty!")
         self.id = Note._id_counter
         Note._id_counter += 1
         self.content = content.strip()
         self.timestamp = datetime.now()
+        self.tags = tags if tags else []
 
     def __str__(self) -> str:
-        return f"Note ID: {self.id}, Created: {self.timestamp.strftime('%d.%m.%Y %H:%M:%S')}\nContent: {self.content}"
+        tags_str = ", ".join(self.tags) if self.tags else "No tags"
+        return f"Note ID: {self.id}, Created: {self.timestamp.strftime('%d.%m.%Y %H:%M:%S')}\nContent: {self.content}\nTags: {tags_str}"
 
     def edit(self, new_content: str) -> None:
         """Редагування вмісту нотатки."""
         if len(new_content.strip()) == 0:
             raise ValueError("Note can not be empty!")
         self.content = new_content.strip()
+
+    def edit_tags(self, new_tags: list[str] = None) -> None:
+        """Редагування тегів нотатки."""
+        if new_tags is not None:
+            self.tags = sorted([tag.strip() for tag in new_tags])
+        else:
+            self.tags = []
 
 
 class AddressBook(UserDict):
@@ -194,6 +203,13 @@ class AddressBook(UserDict):
             note for note in self.notes if search_term.lower() in note.content.lower()
         ]
 
+    def search_notes_by_tag(self, tag: str) -> List[Note]:
+        """Пошук нотаток за тегом."""
+        return [note for note in self.notes if tag in note.tags]
+
+    def sort_notes_by_tag(self) -> List[Note]:
+        return sorted(self.notes, key=lambda note: note.tags)
+
     def get_note_by_id(self, note_id: int) -> Note:
         """Отримання нотатки за ID."""
         for note in self.notes:
@@ -205,6 +221,11 @@ class AddressBook(UserDict):
         """Редагування нотатки за ID."""
         note = self.get_note_by_id(note_id)
         note.edit(new_content)
+
+    def edit_tags(self, note_id: int, tags: List[str]) -> None:
+        """Редагування нотатки за ID."""
+        note = self.get_note_by_id(note_id)
+        note.edit_tags(tags)
 
     def delete_note(self, note_id: int) -> None:
         """Видалення нотатки за ID."""
@@ -413,6 +434,54 @@ def find_note(args: List[str], contacts: AddressBook) -> str:
 
 
 @input_error
+def find_note__by_tag(args: List[str], contacts: AddressBook) -> str:
+    """Пошук нотаток за тегом."""
+    if not args:
+        raise ValueError("Nothing to find! Usage: find-note-by-tag <tag>")
+    search_tag = " ".join(args).strip()
+    found_notes = contacts.search_notes_by_tag(search_tag)
+    if not found_notes:
+        return "No notes found."
+    result = "Found notes:\n"
+    for note in found_notes:
+        result += f"{str(note)}\n"
+    return result.strip()
+
+
+@input_error
+def view_all_notes(contacts: AddressBook) -> str:
+    """Показ усіх нотаток."""
+    if not contacts.notes:
+        return "No notes available."
+    return "\n\n".join(str(note) for note in contacts.notes)
+
+
+@input_error
+def sort_notes_by_tag(contacts: AddressBook) -> str:
+    """Показ усіх нотаток з сортуванням за тегами."""
+    if not contacts.notes:
+        return "No notes available."
+    return "\n\n".join(str(note) for note in contacts.sort_notes_by_tag())
+
+
+@input_error
+def view_note_by_id(args: List[str], contacts: AddressBook) -> str:
+    """Показ нотатки по ID."""
+    if len(args) != 1:
+        raise ValueError("Invalid arguments. Usage: note-by-id <id>")
+    try:
+        note_id = int(args[0])
+    except ValueError:
+        raise ValueError("Note ID must be an integer.")
+
+    found_note = contacts.get_note_by_id(note_id)
+    if not found_note:
+        return f"No note found with ID {note_id}."
+    result = "Found note:\n" f"{str(found_note)}\n"
+    return result.strip()
+
+
+@input_error
 def edit_note(args: List[str], contacts: AddressBook) -> str:
     """Редагування нотатки."""
     if len(args) < 2:
@@ -425,6 +494,23 @@ def edit_note(args: List[str], contacts: AddressBook) -> str:
         raise ValueError("Note ID must be an integer.")
     new_content = " ".join(args[1:]).strip()
     contacts.edit_note(note_id, new_content)
+    return f"Note with ID {note_id} has been updated."
+
+
+@input_error
+def edit_tags(args: List[str], contacts: AddressBook) -> str:
+    """Редагування нотатки."""
+    if len(args) < 1:
+        raise ValueError(
+            "Not enough arguments provided. Usage: edit-tags <id> <new_tag1, tag2, tag3...>"
+        )
+    try:
+        note_id = int(args[0])
+    except ValueError:
+        raise ValueError("Note ID must be an integer.")
+    tags_str = " ".join(args[1:]).strip()
+    new_tags = tags_str.split(",")
+    contacts.edit_tags(note_id, new_tags)
     return f"Note with ID {note_id} has been updated."
 
 
@@ -455,7 +541,12 @@ def show_help() -> str:
     - birthdays: Show upcoming birthdays within the next week.
     - add-note <note_content>: Add a new text note.
     - find-note <search_term>: Find notes containing the search term.
+    - find-note-by-tag <tag>: Find notes containing the search term.
+    - all-notes: Show all notes.
+    - sort-notes-by-tag: Show all notes sorted by tags.
+    - note-by-id <id>: Show note with specified ID.
     - edit-note <note_id> <new_content>: Edit an existing note.
+    - edit-tags <id> <new_tag1, tag2, tag3...>: Edit note's tags
     - delete-note <note_id>: Delete a note by its ID.
     - close or exit: Exit the bot.
     - help: Show this help message.
@@ -498,10 +589,20 @@ def main() -> None:
             print(add_note(args, contacts))
         elif command == "find-note":
             print(find_note(args, contacts))
+        elif command == "find-note-by-tag":
+            print(find_note__by_tag(args, contacts))
         elif command == "edit-note":
             print(edit_note(args, contacts))
+        elif command == "edit-tags":
+            print(edit_tags(args, contacts))
         elif command == "delete-note":
             print(delete_note(args, contacts))
+        elif command == "all-notes":
+            print(view_all_notes(contacts))
+        elif command == "sort-notes-by-tag":
+            print(sort_notes_by_tag(contacts))
+        elif command == "note-by-id":
+            print(view_note_by_id(args, contacts))
         elif command == "help":
             print(show_help())
         else:
