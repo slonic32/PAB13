@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, List, Tuple
 from collections import UserDict
 import re
 from datetime import datetime, timedelta
