@@ -1,8 +1,9 @@
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, List, Tuple
 from collections import UserDict
 import re
 from datetime import datetime, timedelta
 import pickle
+import copy
 
 
 class Field:
@@ -108,8 +109,35 @@ class Record:
         return f"Contact name: {self.name.value}, phones: {'; '.join(str(p) for p in self.phones)}{birthday_str}"
 
 
+class Note:
+    """Клас для зберігання нотаток."""
+
+    _id_counter = 1  # останній ID
+
+    def __init__(self, content: str):
+        if len(content.strip()) == 0:
+            raise ValueError("Note can not be empty!")
+        self.id = Note._id_counter
+        Note._id_counter += 1
+        self.content = content.strip()
+        self.timestamp = datetime.now()
+
+    def __str__(self) -> str:
+        return f"Note ID: {self.id}, Created: {self.timestamp.strftime('%d.%m.%Y %H:%M:%S')}\nContent: {self.content}"
+
+    def edit(self, new_content: str) -> None:
+        """Редагування вмісту нотатки."""
+        if len(new_content.strip()) == 0:
+            raise ValueError("Note can not be empty!")
+        self.content = new_content.strip()
+
+
 class AddressBook(UserDict):
     """Клас для зберігання та управління записами в адресній книзі."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.notes: List[Note] = []
 
     def add_record(self, record: Record) -> None:
         """Додавання запису до книги."""
@@ -152,6 +180,50 @@ class AddressBook(UserDict):
 
         return upcoming_birthdays
 
+    # нотатки
+
+    def add_note(self, content: str) -> Note:
+        """Додавання нової нотатки."""
+        note = Note(content)
+        self.notes.append(note)
+        return note
+
+    def find_notes(self, search_term: str) -> List[Note]:
+        """Пошук нотаток за змістом."""
+        return [
+            note for note in self.notes if search_term.lower() in note.content.lower()
+        ]
+
+    def get_note_by_id(self, note_id: int) -> Note:
+        """Отримання нотатки за ID."""
+        for note in self.notes:
+            if note.id == note_id:
+                return note
+        raise ValueError(f"Note with ID {note_id} not found.")
+
+    def edit_note(self, note_id: int, new_content: str) -> None:
+        """Редагування нотатки за ID."""
+        note = self.get_note_by_id(note_id)
+        note.edit(new_content)
+
+    def delete_note(self, note_id: int) -> None:
+        """Видалення нотатки за ID."""
+        note = self.get_note_by_id(note_id)
+        self.notes.remove(note)
+
+    # нові методи копіювання
+    def __copy__(self):
+        new_ab = AddressBook()
+        new_ab.data = self.data.copy()
+        new_ab.notes = self.notes.copy()
+        return new_ab
+
+    def __deepcopy__(self, memo):
+        new_ab = AddressBook()
+        new_ab.data = copy.deepcopy(self.data, memo)
+        new_ab.notes = copy.deepcopy(self.notes, memo)
+        return new_ab
+
 
 def input_error(func: Callable) -> Callable:
     """Декоратор для обробки помилок"""
@@ -183,7 +255,12 @@ def save_data(book, filename="addressbook.pkl"):
 def load_data(filename="addressbook.pkl"):
     try:
         with open(filename, "rb") as f:
-            return pickle.load(f)
+            book = pickle.load(f)
+            # Оновлення id для Note
+            if book.notes:
+                max_id = max(note.id for note in book.notes)
+                Note._id_counter = max_id + 1
+            return book
     except FileNotFoundError:
         # Повертаємо нову адресу книгу, якщо файл не знайдено
         return AddressBook()
@@ -307,6 +384,63 @@ def birthdays(contacts: AddressBook) -> str:
     )
 
 
+# команди для роботи з нотатками
+
+
+@input_error
+def add_note(args: List[str], contacts: AddressBook) -> str:
+    """Додавання нової нотатки."""
+    if not args:
+        raise ValueError("Note is empty!  Usage: add-note <some_text>")
+    content = " ".join(args).strip()
+    note = contacts.add_note(content)
+    return f"Added note with ID {note.id}."
+
+
+@input_error
+def find_note(args: List[str], contacts: AddressBook) -> str:
+    """Пошук нотаток за змістом."""
+    if not args:
+        raise ValueError("Nothing to find! Usage: find-note <some_text>")
+    search_term = " ".join(args).strip()
+    found_notes = contacts.find_notes(search_term)
+    if not found_notes:
+        return "No notes found."
+    result = "Found notes:\n"
+    for note in found_notes:
+        result += f"{str(note)}\n"
+    return result.strip()
+
+
+@input_error
+def edit_note(args: List[str], contacts: AddressBook) -> str:
+    """Редагування нотатки."""
+    if len(args) < 2:
+        raise ValueError(
+            "Not enough arguments provided. Usage: edit-note <id> <new_content>"
+        )
+    try:
+        note_id = int(args[0])
+    except ValueError:
+        raise ValueError("Note ID must be an integer.")
+    new_content = " ".join(args[1:]).strip()
+    contacts.edit_note(note_id, new_content)
+    return f"Note with ID {note_id} has been updated."
+
+
+@input_error
+def delete_note(args: List[str], contacts: AddressBook) -> str:
+    """Видалення нотатки за ID."""
+    if len(args) != 1:
+        raise ValueError("Invalid arguments. Usage: delete-note <id>")
+    try:
+        note_id = int(args[0])
+    except ValueError:
+        raise ValueError("Note ID must be an integer.")
+    contacts.delete_note(note_id)
+    return f"Note with ID {note_id} has been deleted."
+
+
 def show_help() -> str:
     """print help"""
     help_text = """
@@ -314,11 +448,15 @@ def show_help() -> str:
     - hello: Greet the bot.
     - add <name> <phone>: Add a new contact.
     - change <name> <old_phone> <new_phone>: Change an existing contact's phone number.
-    - phone <name>: Show the phone number of a contact.
+    - phone <name>: Show the phone number(s) of a contact.
     - all: Show all contacts.
     - add-birthday <name> <DD.MM.YYYY>: Add birthday for a contact.
     - show-birthday <name>: Show birthday of a contact.
     - birthdays: Show upcoming birthdays within the next week.
+    - add-note <note_content>: Add a new text note.
+    - find-note <search_term>: Find notes containing the search term.
+    - edit-note <note_id> <new_content>: Edit an existing note.
+    - delete-note <note_id>: Delete a note by its ID.
     - close or exit: Exit the bot.
     - help: Show this help message.
     """
@@ -356,6 +494,14 @@ def main() -> None:
             print(show_birthday(args, contacts))
         elif command == "birthdays":
             print(birthdays(contacts))
+        elif command == "add-note":
+            print(add_note(args, contacts))
+        elif command == "find-note":
+            print(find_note(args, contacts))
+        elif command == "edit-note":
+            print(edit_note(args, contacts))
+        elif command == "delete-note":
+            print(delete_note(args, contacts))
         elif command == "help":
             print(show_help())
         else:
