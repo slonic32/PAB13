@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from typing import Callable, List, Tuple
 from collections import UserDict
 import re
@@ -5,14 +7,16 @@ from datetime import datetime, timedelta
 import pickle
 import copy
 
+from pathlib import Path
+
 
 class Field:
     """Базовий клас для полів запису"""
 
-    def __init__(self, value: str):
-        self.value = value.strip()
+    def __init__(self, value):
+        self.value = value
 
-    def __str__(self) -> str:
+    def __str__(self):
         return str(self.value)
 
 
@@ -54,6 +58,35 @@ class Phone(Field):
             raise ValueError("Phone number must contain 10 digits")
 
 
+class Email(Field):
+    """Клас для зберігання електронної адреси з валідацією формату."""
+
+    def __init__(self, value: str):
+        if Email.is_valid(value):
+            super().__init__(value)
+        else:
+            raise ValueError("Email must be valid")
+
+    @staticmethod
+    def is_valid(email) -> bool:
+        """Валідація електронної адреси"""
+        if re.fullmatch(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email):
+            return True
+        else:
+            return False
+
+    def __eq__(self, value: object) -> bool:
+        """=="""
+        return self.value == value.value
+
+    def edit(self, new_value: str) -> None:
+        """edit email"""
+        if Email.is_valid(new_value):
+            self.value = new_value.strip()
+        else:
+            raise ValueError("Email must be valid")
+
+
 class Birthday(Field):
     """Клас для зберігання дня народження."""
 
@@ -66,7 +99,7 @@ class Birthday(Field):
         # перевірка на коректність дати
         if birthday > datetime.today().date():
             raise ValueError("Birthday from the future is not allowed!")
-        self.value = birthday
+        super().__init__(birthday)
 
     def __str__(self) -> str:
         return self.value.strftime("%d.%m.%Y")
@@ -78,11 +111,16 @@ class Record:
     def __init__(self, name: str):
         self.name = Name(name)
         self.phones = []
+        self.emails = []
         self.birthday = None
 
     def add_phone(self, phone: str) -> None:
         """Додавання номера телефону."""
         self.phones.append(Phone(phone))
+
+    def add_email(self, email: str) -> None:
+        """Додавання електронної адреси."""
+        self.emails.append(Email(email))
 
     def find_phone(self, phone: str) -> str:
         """Пошук телефону у записі."""
@@ -92,13 +130,47 @@ class Record:
                 return p
         raise ValueError(f"Phone number {phone} not found")
 
+    def find_email(self, email: str) -> str:
+        """Пошук електронної адреси у записі."""
+        find_email = Email(email)
+        for e in self.emails:
+            if e == find_email:
+                return e
+        raise ValueError(f"Email {email} not found")
+
     def remove_phone(self, phone: str) -> None:
         """Видалення номера телефону."""
         self.phones.remove(self.find_phone(phone))
 
-    def edit_phone(self, old_phone: str, new_phone: str) -> None:
+    def remove_email(self, email: str) -> None:
+        """Видалення електронної адреси."""
+        self.emails.remove(self.find_email(email))
+
+    def edit_phone(self, old_phone, new_phone):
         """Редагування телефону."""
-        self.find_phone(old_phone).edit(new_phone)
+        edited = False
+        for p in self.phones:
+            if p.value == old_phone:
+                if len(new_phone) == 10:
+                    p.value = new_phone
+                    edited = True
+                else:
+                    raise ValueError("Phone number must be 10 digits")
+        if not edited:
+            raise ValueError("Phone number not found")
+
+    def edit_email(self, old_email, new_email):
+        """Редагування електронної адреси."""
+        edited = False
+        for p in self.emails:
+            if p.value == old_email:
+                if Email.is_valid(new_email):
+                    p.value = new_email
+                    edited = True
+                else:
+                    raise ValueError("Email must be valid")
+        if not edited:
+            raise ValueError("Email not found")
 
     def add_birthday(self, birthday: str) -> None:
         """Додавання дня народження."""
@@ -106,7 +178,7 @@ class Record:
 
     def __str__(self) -> str:
         birthday_str = f", birthday: {self.birthday}" if self.birthday else ""
-        return f"Contact name: {self.name.value}, phones: {'; '.join(str(p) for p in self.phones)}{birthday_str}"
+        return f"Contact name: {self.name.value}, phones: {'; '.join(str(p) for p in self.phones)}, emails: [{'; '.join(str(e) for e in self.emails)}]{birthday_str}"
 
 
 class Note:
@@ -239,20 +311,20 @@ def input_error(func: Callable) -> Callable:
             return "Enter the correct arguments."
         except (FileNotFoundError, FileExistsError):
             return "File error!"
-        except e:
+        except Exception as e:
             return str(e)
 
     return inner
 
 
 @input_error
-def save_data(book, filename="addressbook.pkl"):
+def save_data(book, filename=f'{Path.home()}/addressbook.pkl'):
     with open(filename, "wb") as f:
         pickle.dump(book, f)
 
 
 @input_error
-def load_data(filename="addressbook.pkl"):
+def load_data(filename=f'{Path.home()}/addressbook.pkl'):
     try:
         with open(filename, "rb") as f:
             book = pickle.load(f)
@@ -293,7 +365,7 @@ def add_contact(args: List[str], contacts: AddressBook) -> str:
 
 
 @input_error
-def change_contact(args: List[str], contacts: AddressBook) -> str:
+def change_contact_phone(args: List[str], contacts: AddressBook) -> str:
     """edit contact"""
     if len(args) < 3:
         raise ValueError("Not enough arguments provided.")
@@ -306,7 +378,24 @@ def change_contact(args: List[str], contacts: AddressBook) -> str:
         record.edit_phone(old_phone, new_phone)
     else:
         raise KeyError(f"Record with name {name} not found")
-    return f"Contact '{name}' updated to phone number {new_phone}."
+    return f"Contact '{name}' updated to include phone number {new_phone}."
+
+
+@input_error
+def change_contact_email(args: List[str], contacts: AddressBook) -> str:
+    """edit contact"""
+    if len(args) < 3:
+        raise ValueError("Not enough arguments provided.")
+
+    name = " ".join(args[:-2]).strip()
+    old_email = args[-2].strip()
+    new_email = args[-1].strip()
+    record = contacts.find(name)
+    if record:
+        record.edit_email(old_email, new_email)
+    else:
+        raise KeyError(f"Record with name {name} not found")
+    return f"Contact '{name}' updated to include email {new_email}."
 
 
 @input_error
@@ -323,6 +412,23 @@ def show_phone(args: List[str], contacts: AddressBook) -> str:
         raise KeyError(f"Record with name {name} not found")
 
     return f"{name}'s phone number is {'; '.join(str(p) for p in phones).strip()}."
+
+
+@input_error
+def show_email(args: List[str], contacts: AddressBook) -> str:
+    """show contact"""
+    if len(args) == 0:
+        raise IndexError("No contact name provided.")
+
+    name = " ".join(args).strip()
+    record = contacts.find(name)
+    if record:
+        emails = record.emails
+    else:
+        raise KeyError(f"Record with name {name} not found")
+
+    suffix = "es" if len(emails) > 1 else ""
+    return f"{name}'s emails address{suffix} {'; '.join(str(p) for p in emails).strip()}."
 
 
 @input_error
@@ -353,6 +459,23 @@ def add_birthday(args: List[str], contacts: AddressBook) -> str:
         contacts.add_record(record)
     record.add_birthday(birthday)
     return f"Added birthday {birthday} for {name}."
+
+
+@input_error
+def add_email(args: List[str], contacts: AddressBook) -> str:
+    """Add birthday to contact."""
+    if len(args) < 2:
+        raise ValueError("Not enough arguments provided.")
+    name = " ".join(args[:-1]).strip()
+    email = args[-1].strip()
+    record = contacts.find(name)
+    if record:
+        record.add_email(email)
+    else:
+        record = Record(name)
+        record.add_email(email)
+        contacts.add_record(record)
+    return f"Added email {email} for {name}."
 
 
 @input_error
@@ -447,10 +570,13 @@ def show_help() -> str:
     Available commands:
     - hello: Greet the bot.
     - add <name> <phone>: Add a new contact.
-    - change <name> <old_phone> <new_phone>: Change an existing contact's phone number.
+    - change-phone <name> <old_phone> <new_phone>: Change an existing contact's phone number.
+    - change-email <name> <old_email> <new_email>: Change an existing contact's email address.
     - phone <name>: Show the phone number(s) of a contact.
+    - email <name>: Show the email address(es) of a contact.
     - all: Show all contacts.
     - add-birthday <name> <DD.MM.YYYY>: Add birthday for a contact.
+    - add-email <name> <email@domain>: Add email address for a contact.
     - show-birthday <name>: Show birthday of a contact.
     - birthdays: Show upcoming birthdays within the next week.
     - add-note <note_content>: Add a new text note.
@@ -482,14 +608,20 @@ def main() -> None:
             print("Hello! How can I assist you?")
         elif command == "add":
             print(add_contact(args, contacts))
-        elif command == "change":
-            print(change_contact(args, contacts))
+        elif command == "change-phone":
+            print(change_contact_phone(args, contacts))
+        elif command == "change-email":
+            print(change_contact_email(args, contacts))
         elif command == "phone":
             print(show_phone(args, contacts))
+        elif command == "email":
+            print(show_email(args, contacts))
         elif command == "all":
             print(show_all(contacts))
         elif command == "add-birthday":
             print(add_birthday(args, contacts))
+        elif command == "add-email":
+            print(add_email(args, contacts))
         elif command == "show-birthday":
             print(show_birthday(args, contacts))
         elif command == "birthdays":
