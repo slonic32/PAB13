@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
 from typing import Callable, List, Tuple
 from collections import UserDict
 import re
 from datetime import datetime, timedelta
 import pickle
 import copy
+import os
 
-from pathlib import Path
+if os.name == "posix":  # якщо MacOS чи Linux
+    import readline
 
 
 class Field:
@@ -193,7 +196,7 @@ class Note:
         Note._id_counter += 1
         self.content = content.strip()
         self.timestamp = datetime.now()
-        self.tags = tags if tags else []
+        self.tags = sorted([tag.strip() for tag in tags]) if tags else []
 
     def __str__(self) -> str:
         tags_str = ", ".join(self.tags) if self.tags else "No tags"
@@ -237,7 +240,7 @@ class AddressBook(UserDict):
         else:
             raise KeyError(f"Record with name {name} not found")
 
-    def get_upcoming_birthdays(self) -> list:
+    def get_upcoming_birthdays(self, days_to_birthday: int) -> list:
         """Отримання списку користувачів, яких потрібно привітати на наступному тижні."""
         today = datetime.today().date()
         upcoming_birthdays = []
@@ -249,7 +252,11 @@ class AddressBook(UserDict):
                 if birthday_this_year < today:
                     birthday_this_year = birthday_this_year.replace(year=today.year + 1)
 
-                if today <= birthday_this_year <= today + timedelta(days=7):
+                if (
+                    today
+                    <= birthday_this_year
+                    <= today + timedelta(days=days_to_birthday)
+                ):
                     upcoming_birthdays.append(
                         {
                             "name": str(record.name),
@@ -339,13 +346,13 @@ def input_error(func: Callable) -> Callable:
 
 
 @input_error
-def save_data(book, filename=f'{Path.home()}/addressbook.pkl'):
+def save_data(book, filename=f"{Path.home()}/addressbook.pkl"):
     with open(filename, "wb") as f:
         pickle.dump(book, f)
 
 
 @input_error
-def load_data(filename=f'{Path.home()}/addressbook.pkl'):
+def load_data(filename=f"{Path.home()}/addressbook.pkl"):
     try:
         with open(filename, "rb") as f:
             book = pickle.load(f)
@@ -449,7 +456,9 @@ def show_email(args: List[str], contacts: AddressBook) -> str:
         raise KeyError(f"Record with name {name} not found")
 
     suffix = "es" if len(emails) > 1 else ""
-    return f"{name}'s emails address{suffix} {'; '.join(str(p) for p in emails).strip()}."
+    return (
+        f"{name}'s emails address{suffix} {'; '.join(str(p) for p in emails).strip()}."
+    )
 
 
 @input_error
@@ -515,11 +524,17 @@ def show_birthday(args: List[str], contacts: AddressBook) -> str:
 
 
 @input_error
-def birthdays(contacts: AddressBook) -> str:
+def birthdays(args: List[str], contacts: AddressBook) -> str:
     """Show upcoming birthdays."""
-    upcoming_birthdays = contacts.get_upcoming_birthdays()
+    if len(args) != 1:
+        raise ValueError("Invalid arguments. Usage: birthdays <days>")
+    try:
+        days_to_birthday = int(args[0])
+    except ValueError:
+        raise ValueError("Note <days> must be an integer.")
+    upcoming_birthdays = contacts.get_upcoming_birthdays(days_to_birthday)
     if not upcoming_birthdays:
-        return "No upcoming birthdays within the next week."
+        return f"No upcoming birthdays within the next {days_to_birthday} days."
     return "\n".join(
         [
             f"{entry['name']} - {entry['congratulation_date']}"
@@ -653,6 +668,7 @@ def delete_note(args: List[str], contacts: AddressBook) -> str:
 def show_help() -> str:
     """print help"""
     help_text = """
+    On MacOS/Linux You can use TAB key for autocompletion of the commands and arrow keys for history
     Available commands:
     - hello: Greet the bot.
     - add <name> <phone>: Add a new contact.
@@ -664,7 +680,7 @@ def show_help() -> str:
     - add-birthday <name> <DD.MM.YYYY>: Add birthday for a contact.
     - add-email <name> <email@domain>: Add email address for a contact.
     - show-birthday <name>: Show birthday of a contact.
-    - birthdays: Show upcoming birthdays within the next week.
+    - birthdays <days>: Show upcoming birthdays within the next given days.
     - add-note <note_content>: Add a new text note.
     - find-note <search_term>: Find notes containing the search term.
     - find-note-by-tag <tag>: Find notes containing the search term.
@@ -680,11 +696,59 @@ def show_help() -> str:
     return help_text.strip()
 
 
+def prepear_autocomplete() -> None:
+    """налаштування автозавершення"""
+
+    commands = [
+        "hello",
+        "add",
+        "change-phone",
+        "change-email",
+        "phone",
+        "email",
+        "all",
+        "add-birthday",
+        "add-email",
+        "show-birthday",
+        "birthdays",
+        "add-note",
+        "find-note",
+        "find-note-by-tag",
+        "all-notes",
+        "sort-notes-by-tag",
+        "note-by-id",
+        "edit-note",
+        "edit-tags",
+        "delete-note",
+        "close",
+        "exit",
+        "help",
+    ]
+
+    def completer(text: str, state: int) -> List[str]:
+        options = [command for command in commands if command.startswith(text)]
+        try:
+            return options[state]
+        except IndexError:
+            return None
+
+    # видалимо - з роздільників, бо у нас дивний набір коианд
+    readline.set_completer_delims(readline.get_completer_delims().replace("-", ""))
+    readline.set_completer(completer)
+    readline.parse_and_bind("tab: complete")  # Тисни TAB для автозавершення
+
+
 def main() -> None:
     """main"""
     # Завантаження адресної книги з файлу
     contacts = load_data()
     print("Welcome to the assistant bot!")
+
+    # підготовка автозавершення команд
+    if os.name == "posix":
+        prepear_autocomplete()
+        print("Use TAB key for autocompletion of the commands")
+        print("Use arrow keys for history of the commands")
 
     while True:
         user_input = input("Enter a command: ").strip()
@@ -716,7 +780,7 @@ def main() -> None:
         elif command == "show-birthday":
             print(show_birthday(args, contacts))
         elif command == "birthdays":
-            print(birthdays(contacts))
+            print(birthdays(args, contacts))
         elif command == "add-note":
             print(add_note(args, contacts))
         elif command == "find-note":

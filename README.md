@@ -1,4 +1,5 @@
 # PAB13
+
 Personal Assistant Bot
 
 ## Dependencies:
@@ -10,7 +11,9 @@ Python 3.10
 Create a symlink in user bin directory:
 
 ### On Mac/Linux:
+
 Open terminal, CD to project installation dir and run:
+
 ```
 sudo ln -s $PWD/bot.py /usr/local/bin/bot.py
 ```
@@ -22,9 +25,11 @@ Reopen terminal, launch bot.py from anywhere:
 macbookpro1:~ yuriy$ bot.py
 Welcome to the assistant bot!
 ```
+
 ## Usage
 
-Launch bot.py and type one of the following command when prompted:
+Launch bot.py and type one of the following command when prompted (On MacOS/Linux You can use TAB key for autocompletion of the commands and arrow keys for history):
+
 ```
 Available commands:
     - hello: Greet the bot.
@@ -37,11 +42,16 @@ Available commands:
     - add-birthday <name> <DD.MM.YYYY>: Add birthday for a contact.
     - add-email <name> <email@domain>: Add email address for a contact.
     - show-birthday <name>: Show birthday of a contact.
-    - birthdays: Show upcoming birthdays within the next week.
+    - birthdays <days>: Show upcoming birthdays within the next given days.
     - add-note <note_content>: Add a new text note.
     - find-note <search_term>: Find notes containing the search term.
+    - find-note-by-tag <tag>: Find notes containing the search term.
+    - all-notes: Show all notes.
+    - sort-notes-by-tag: Show all notes sorted by tags.
+    - note-by-id <id>: Show note with specified ID.
     - edit-note <note_id> <new_content>: Edit an existing note.
+    - edit-tags <id> <new_tag1, tag2, tag3...>: Edit note's tags
     - delete-note <note_id>: Delete a note by its ID.
     - close or exit: Exit the bot.
-    - help: Show help message.
+    - help: Show this help message.
 ```
