@@ -126,7 +126,7 @@ class Record:
         self.emails.append(Email(email))
 
     def find_phone(self, phone: str) -> str:
-        """Пошук телефону у записі."""
+        """Пошук телефону у записі (точне входження)."""
         find_phone = Phone(phone)
         for p in self.phones:
             if p == find_phone:
@@ -134,13 +134,14 @@ class Record:
         raise ValueError(f"Phone number {phone} not found")
 
     def find_phone_by_part(self, part: str) -> str:
-        """Пошук телефону у записі."""
+        """Пошук частини телефону у записі."""
         for p in self.phones:
             if part in p.value:
                 return p
         raise ValueError(f"Phone number matching {part} not found")
 
     def find_phone_exact_or_part(self, part) -> str:
+        """Пошук телефону чи його частини у записі."""
         found_phone = None
         try:
             found_phone = self.find_phone(part)
@@ -151,26 +152,22 @@ class Record:
         return found_phone
 
     def find_email(self, email: str) -> str:
-        """Пошук електронної адреси у записі."""
+        """Пошук електронної адреси у записі (точне входження)."""
         find_email = Email(email)
-        # look for exact match first
         for e in self.emails:
             if e == find_email:
-                return e
-        # look for partial match
-        for e in self.emails:
-            if e.value in find_email.value:
                 return e
         raise ValueError(f"Email {email} not found")
 
     def find_email_by_part(self, part: str) -> str:
-        """Пошук телефону у записі."""
+        """Пошук частини електронної адреси у записі."""
         for e in self.emails:
             if part in e.value:
                 return e
         raise ValueError(f"Email address matching {part} not found")
 
     def find_email_exact_or_part(self, part) -> str:
+        """Пошук електронної адреси чи її частини у записі."""
         found_email = None
         try:
             found_email = self.find_email(part)
@@ -458,7 +455,7 @@ def add_contact(args: List[str], contacts: AddressBook) -> str:
 
 @input_error
 def delete_contact(args: List[str], contacts: AddressBook) -> str:
-    """delete contact"""
+    """delete contact if found"""
     if len(args) < 1:
         raise ValueError("Not enough arguments provided.")
 
@@ -815,7 +812,7 @@ def show_help() -> str:
     return help_text.strip()
 
 
-def prepear_autocomplete() -> None:
+def prepare_autocomplete() -> None:
     """налаштування автозавершення"""
 
     commands = [
@@ -868,7 +865,7 @@ def main() -> None:
 
     # підготовка автозавершення команд
     if os.name == "posix":
-        prepear_autocomplete()
+        prepare_autocomplete()
         print("Use TAB key for autocompletion of the commands")
         print("Use arrow keys for history of the commands")
 
