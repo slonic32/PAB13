@@ -133,13 +133,53 @@ class Record:
                 return p
         raise ValueError(f"Phone number {phone} not found")
 
+    def find_phone_by_part(self, part: str) -> str:
+        """Пошук телефону у записі."""
+        for p in self.phones:
+            if part in p.value:
+                return p
+        raise ValueError(f"Phone number matching {part} not found")
+
+    def find_phone_exact_or_part(self, part) -> str:
+        found_phone = None
+        try:
+            found_phone = self.find_phone(part)
+        except ValueError:
+            pass
+        if not found_phone:
+            found_phone = self.find_phone_by_part(part)
+        return found_phone
+
     def find_email(self, email: str) -> str:
         """Пошук електронної адреси у записі."""
         find_email = Email(email)
+        # look for exact match first
         for e in self.emails:
             if e == find_email:
                 return e
+        # look for partial match
+        for e in self.emails:
+            if e.value in find_email.value:
+                return e
         raise ValueError(f"Email {email} not found")
+
+    def find_email_by_part(self, part: str) -> str:
+        """Пошук телефону у записі."""
+        for e in self.emails:
+            if part in e.value:
+                return e
+        raise ValueError(f"Email address matching {part} not found")
+
+    def find_email_exact_or_part(self, part) -> str:
+        found_email = None
+        try:
+            found_email = self.find_email(part)
+        except ValueError:
+            pass
+
+        if not found_email:
+            found_email = self.find_email_by_part(part)
+        return found_email
 
     def remove_phone(self, phone: str) -> None:
         """Видалення номера телефону."""
@@ -234,11 +274,11 @@ class AddressBook(UserDict):
         return None
 
     def find_email(self, email: str) -> Record:
-        """Пошук першого запису за електронною адресою."""
+        """Пошук першого запису за електронною адресою чи її частиною"""
         found = None
         for record in self.data.values():
             try:
-                found = record if record.find_email(email) else None
+                found = record if record.find_email_exact_or_part(email) else None
                 break
             except ValueError:
                 pass
@@ -246,11 +286,11 @@ class AddressBook(UserDict):
         return found
 
     def find_phone(self, phone: str) -> Record:
-        """Пошук першого запису за номером телефону."""
+        """Пошук першого запису за номером телефону чи його частиною"""
         found = None
         for record in self.data.values():
             try:
-                found = record.find_phone(phone)
+                found = record if record.find_phone_exact_or_part(phone) else None
                 break
             except ValueError:
                 pass
@@ -440,12 +480,8 @@ def edit_contact_name(args: List[str], contacts: AddressBook) -> str:
     old_name = " ".join(args[:-1]).strip()
     new_name = args[-1].strip()
     record = contacts.find(old_name)
-    # new_record = copy.deepcopy(record)
-    # new_record.name = new_name
     if record:
         record.name = Name(new_name)
-        # contacts.add_record(new_record)
-        # contacts.delete(old_name)
     else:
         raise ValueError(f"Contact with name '{old_name}' not found")
     return f"Contact '{old_name}' renamed to {new_name}."
@@ -453,14 +489,23 @@ def edit_contact_name(args: List[str], contacts: AddressBook) -> str:
 
 @input_error
 def find_contact(args: List[str], contacts: AddressBook) -> str:
-    """find contact by email or phone """
+    """find contact by name, email or phone or their parts """
     if len(args) < 1:
         raise ValueError("Not enough arguments provided.")
 
-    email_or_phone = args[0].strip()
-    record = contacts.find_email(email_or_phone) if re.match(r'.*@.*', email_or_phone) else contacts.find_phone(
-        email_or_phone)
-    return record.__str__() if record else "No contacts found"
+    record = None
+    user_arg = args[0].strip()
+    if "@" in user_arg:
+        # it's an email
+        record = contacts.find_email(user_arg)
+    elif re.match(r'\d+', user_arg):
+        # it's a phone
+        record = contacts.find_phone(user_arg)
+    else:
+        # it's a name
+        record = contacts.find(user_arg)
+
+    return str(record) if record else "No contacts found"
 
 
 @input_error
@@ -745,7 +790,7 @@ def show_help() -> str:
     - add <name> <phone>: Add a new contact.
     - edit <name>: Rename existing contact.
     - delete <name>: Delete existing contact.
-    - find <phone/email>: Find contact by phone or email.
+    - find <name/phone/email>: Find contact by name (full name only), phone, email or their parts (email must contain @)
     - change-phone <name> <old_phone> <new_phone>: Change an existing contact's phone number.
     - change-email <name> <old_email> <new_email>: Change an existing contact's email address.
     - phone <name>: Show the phone number(s) of a contact.
