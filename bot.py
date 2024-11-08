@@ -317,9 +317,9 @@ class AddressBook(UserDict):
                     birthday_this_year = birthday_this_year.replace(year=today.year + 1)
 
                 if (
-                        today
-                        <= birthday_this_year
-                        <= today + timedelta(days=days_to_birthday)
+                    today
+                    <= birthday_this_year
+                    <= today + timedelta(days=days_to_birthday)
                 ):
                     upcoming_birthdays.append(
                         {
@@ -489,7 +489,7 @@ def edit_contact_name(args: List[str], contacts: AddressBook) -> str:
 
 @input_error
 def find_contact(args: List[str], contacts: AddressBook) -> str:
-    """find contact by name, email or phone or their parts """
+    """find contact by name, email or phone or their parts"""
     if len(args) < 1:
         raise ValueError("Not enough arguments provided.")
 
@@ -498,7 +498,7 @@ def find_contact(args: List[str], contacts: AddressBook) -> str:
     if "@" in user_arg:
         # it's an email
         record = contacts.find_email(user_arg)
-    elif re.match(r'\d+', user_arg):
+    elif re.match(r"\d+", user_arg):
         # it's a phone
         record = contacts.find_phone(user_arg)
     else:
