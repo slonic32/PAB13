@@ -28,12 +28,16 @@ Welcome to the assistant bot!
 
 ## Usage
 
-Launch bot.py and type one of the following command when prompted (On MacOS/Linux You can use TAB key for autocompletion of the commands and arrow keys for history):
+Launch bot.py and type one of the following command when prompted (On MacOS/Linux You can use TAB key for autocompletion
+of the commands and arrow keys for history):
 
 ```
 Available commands:
     - hello: Greet the bot.
     - add <name> <phone>: Add a new contact.
+    - edit <name>: Rename existing contact.
+    - delete <name>: Delete existing contact.
+    - find <phone/email>: Find first matching contact by phone or email.
     - change-phone <name> <old_phone> <new_phone>: Change an existing contact's phone number.
     - change-email <name> <old_email> <new_email>: Change an existing contact's email address.
     - phone <name>: Show the phone number(s) of a contact.
