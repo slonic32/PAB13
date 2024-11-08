@@ -233,6 +233,30 @@ class AddressBook(UserDict):
             return self.data[name]
         return None
 
+    def find_email(self, email: str) -> Record:
+        """Пошук першого запису за електронною адресою."""
+        found = None
+        for record in self.data.values():
+            try:
+                found = record if record.find_email(email) else None
+                break
+            except ValueError:
+                pass
+
+        return found
+
+    def find_phone(self, phone: str) -> Record:
+        """Пошук першого запису за номером телефону."""
+        found = None
+        for record in self.data.values():
+            try:
+                found = record.find_phone(phone)
+                break
+            except ValueError:
+                pass
+
+        return found
+
     def delete(self, name: str) -> None:
         """Видалення запису за ім'ям."""
         if name in self.data:
@@ -253,9 +277,9 @@ class AddressBook(UserDict):
                     birthday_this_year = birthday_this_year.replace(year=today.year + 1)
 
                 if (
-                    today
-                    <= birthday_this_year
-                    <= today + timedelta(days=days_to_birthday)
+                        today
+                        <= birthday_this_year
+                        <= today + timedelta(days=days_to_birthday)
                 ):
                     upcoming_birthdays.append(
                         {
@@ -390,6 +414,53 @@ def add_contact(args: List[str], contacts: AddressBook) -> str:
         record.add_phone(phone)
         contacts.add_record(record)
     return f"Contact '{name}' added with phone number {phone}."
+
+
+@input_error
+def delete_contact(args: List[str], contacts: AddressBook) -> str:
+    """delete contact"""
+    if len(args) < 1:
+        raise ValueError("Not enough arguments provided.")
+
+    name = " ".join(args).strip()
+    record = contacts.find(name)
+    if record:
+        contacts.delete(name)
+    else:
+        raise ValueError(f"Contact with name '{name}' not found")
+    return f"Contact '{name}' deleted"
+
+
+@input_error
+def edit_contact_name(args: List[str], contacts: AddressBook) -> str:
+    """edit contact name"""
+    if len(args) < 2:
+        raise ValueError("Not enough arguments provided.")
+
+    old_name = " ".join(args[:-1]).strip()
+    new_name = args[-1].strip()
+    record = contacts.find(old_name)
+    # new_record = copy.deepcopy(record)
+    # new_record.name = new_name
+    if record:
+        record.name = Name(new_name)
+        # contacts.add_record(new_record)
+        # contacts.delete(old_name)
+    else:
+        raise ValueError(f"Contact with name '{old_name}' not found")
+    return f"Contact '{old_name}' renamed to {new_name}."
+
+
+@input_error
+def find_contact(args: List[str], contacts: AddressBook) -> str:
+    """find contact by email or phone """
+    if len(args) < 1:
+        raise ValueError("Not enough arguments provided.")
+
+    email_or_phone = args[0].strip()
+    record = contacts.find_email(email_or_phone) if re.match(r'.*@.*', email_or_phone) else contacts.find_phone(
+        email_or_phone)
+    return record.__str__() if record else "No contacts found"
 
 
 @input_error
@@ -672,6 +743,9 @@ def show_help() -> str:
     Available commands:
     - hello: Greet the bot.
     - add <name> <phone>: Add a new contact.
+    - edit <name>: Rename existing contact.
+    - delete <name>: Delete existing contact.
+    - find <phone/email>: Find contact by phone or email.
     - change-phone <name> <old_phone> <new_phone>: Change an existing contact's phone number.
     - change-email <name> <old_email> <new_email>: Change an existing contact's email address.
     - phone <name>: Show the phone number(s) of a contact.
@@ -702,6 +776,9 @@ def prepear_autocomplete() -> None:
     commands = [
         "hello",
         "add",
+        "edit",
+        "delete",
+        "find",
         "change-phone",
         "change-email",
         "phone",
@@ -763,6 +840,12 @@ def main() -> None:
             print("Hello! How can I assist you?")
         elif command == "add":
             print(add_contact(args, contacts))
+        elif command == "edit":
+            print(edit_contact_name(args, contacts))
+        elif command == "delete":
+            print(delete_contact(args, contacts))
+        elif command == "find":
+            print(find_contact(args, contacts))
         elif command == "change-phone":
             print(change_contact_phone(args, contacts))
         elif command == "change-email":
