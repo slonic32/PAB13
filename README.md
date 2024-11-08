@@ -37,7 +37,7 @@ Available commands:
     - add <name> <phone>: Add a new contact.
     - edit <name>: Rename existing contact.
     - delete <name>: Delete existing contact.
-    - find <name/phone/email>: Find contact by name, phone, email or their parts (email must contain @)
+    - find <name/phone/email>: Find contact by name (full name only), phone, email or their parts (email must contain @)
     - change-phone <name> <old_phone> <new_phone>: Change an existing contact's phone number.
     - change-email <name> <old_email> <new_email>: Change an existing contact's email address.
     - phone <name>: Show the phone number(s) of a contact.
